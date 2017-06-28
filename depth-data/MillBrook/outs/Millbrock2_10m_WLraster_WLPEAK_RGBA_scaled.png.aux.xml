@@ -1,0 +1,18 @@
+<PAMDataset>
+  <GeoTransform> 2.4100000000000000e+005, 1.0000000000000000e+001, 0.0000000000000000e+000, 5.3000000000000000e+004, 0.0000000000000000e+000,-1.0000000000000000e+001</GeoTransform>
+  <Metadata domain="IMAGE_STRUCTURE">
+    <MDI key="INTERLEAVE">PIXEL</MDI>
+  </Metadata>
+  <PAMRasterBand band="1">
+    <NoDataValue>0.00000000000000E+000</NoDataValue>
+  </PAMRasterBand>
+  <PAMRasterBand band="2">
+    <NoDataValue>0.00000000000000E+000</NoDataValue>
+  </PAMRasterBand>
+  <PAMRasterBand band="3">
+    <NoDataValue>0.00000000000000E+000</NoDataValue>
+  </PAMRasterBand>
+  <PAMRasterBand band="4">
+    <NoDataValue>0.00000000000000E+000</NoDataValue>
+  </PAMRasterBand>
+</PAMDataset>

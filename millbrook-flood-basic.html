@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<link href="nouislider.min.css" rel="stylesheet">
+		<title>three.js webgl - materials - displacement map</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			body {
+				background:#000;
+				color:#fff;
+				padding:0;
+				margin:0;
+				font-weight: bold;
+				overflow:hidden;
+			}
+
+			a {	color: #ffffff;	}
+
+			#info {
+				position: absolute;
+				top: 0px; width: 100%;
+				color: #ffffff;
+				padding: 5px;
+				font-family:Monospace;
+				font-size:13px;
+				text-align:center;
+			}
+
+			#vt { display:none }
+			#vt, #vt a { color:orange; }
+		</style>
+	</head>
+
+	<body>
+
+		<div id="info">
+		
+		<a href="http://emps.exeter.ac.uk/engineering/research/cws/resources/caddies-framework/caddies-2d/" target="_blank">CADDIES-2D</a> - (<span id="description">flood model</span>) Simplified Millbrook visualisation </div></br>
+	<table >
+	<tr>
+	
+    <th>Simulation time: &nbsp;&nbsp;</th>
+	<th ><input type="image" id="mybutton" src="play.png" class="play" onclick="toggle(this);"/>&nbsp;&nbsp;&nbsp;&nbsp;</th>
+    <th><div id="range0"></div></th> 
+    <th id="mycol" style="width:400px"><div id="slider-step-value"></div></th>
+	</tr>
+	</table>
+	
+		
+		<script src="nouislider.min.js"></script>
+		<script src="three.min.js"></script>
+		<script src="d3.min.js"></script>
+		<script src="OrbitControls.js"></script>
+		<script src="BufferGeometryUtils.js"></script>
+		<script src="Detector.js"></script>
+		<script src="stats.min.js"></script>
+		<script src='dat.gui.min.js'></script>
+		<script src='baseConverter.js'></script>
+
+		<!-- ---------------- Custom Shader Code ------------------------ -->
+		<script id="vertexShader2" type="x-shader/x-vertex">
+		
+		#ifdef USE_LOGDEPTHBUF
+
+			#ifdef USE_LOGDEPTHBUF_EXT
+
+				varying float vFragDepth;
+
+			#endif
+
+			uniform float logDepthBufFC;
+			uniform float EPSILON;
+
+		#endif
+		
+		uniform sampler2D bumpTexture;
+		uniform sampler2D bumpTexture2;
+		uniform float ratio;
+		uniform float bumpScale;
+		varying float vAmount;
+		varying float difference;
+		
+
+		void main() 
+		{ 
+			vec4 bumpData = texture2D( bumpTexture, uv );
+			vec4 bumpData2 = texture2D( bumpTexture2, uv );
+			//vAmount = (bumpData.r +bumpData.g +bumpData.b) + (((bumpData2.r +bumpData2.g +bumpData2.b) - (bumpData.r +bumpData.g +bumpData.b))* ratio); // assuming map is grayscale it doesn't matter if you use r, g, or b.
+			//vAmount = ((bumpData.a << 24) | (bumpData.b << 16)| (bumpData.g << 8)| bumpData.r) + ((((bumpData2.a << 24) | (bumpData2.b << 16)| (bumpData2.g << 8)| bumpData2.r) - ((bumpData.a << 24) | (bumpData.b << 16)| (bumpData.g << 8)| bumpData.r))* ratio);
+			vAmount = (bumpData.r*256.0*256.0*256.0 +bumpData.g*256.0*256.0+bumpData.b*256.0+bumpData.a) + (((bumpData2.r*256.0*256.0*256.0 +bumpData2.g*256.0*256.0+bumpData2.b*256.0+bumpData2.a) - (bumpData.r*256.0*256.0*256.0 +bumpData.g*256.0*256.0+bumpData.b*256.0+bumpData.a))* ratio);
+			//difference = ((bumpData2.r +bumpData2.g +bumpData2.b) - (bumpData.r +bumpData.g +bumpData.b))* ratio;
+			//difference = (((bumpData2.a << 24) | (bumpData2.b << 16)| (bumpData2.g << 8)| bumpData2.r) - ((bumpData.a << 24) | (bumpData.b << 16)| (bumpData.g << 8)| bumpData.r))* ratio;
+			difference = ((bumpData2.r*256.0*256.0*256.0 +bumpData2.g*256.0*256.0+bumpData2.b*256.0+bumpData2.a) - (bumpData.r*256.0*256.0*256.0 +bumpData.g*256.0*256.0+bumpData.b*256.0+bumpData.a))* ratio;
+			// move the position along the normal
+			vec3 newPosition = position + normal * bumpScale * vAmount;
+			
+			gl_Position = projectionMatrix * modelViewMatrix * vec4( newPosition, 1.0 );
+			#ifdef USE_LOGDEPTHBUF
+
+				gl_Position.z = log2(max( EPSILON, gl_Position.w + 1.0 )) * logDepthBufFC;
+
+				#ifdef USE_LOGDEPTHBUF_EXT
+
+					vFragDepth = 1.0 + gl_Position.w;
+
+				#else
+
+					gl_Position.z = (gl_Position.z - 1.0) * gl_Position.w;
+
+				#endif
+
+			#endif
+		}
+		</script>
+
+		<!-- fragment shader a.k.a. pixel shader -->
+		<script id="fragmentShader2" type="x-shader/x-vertex"> 
+		#ifdef USE_LOGDEPTHBUF
+
+			uniform float logDepthBufFC;
+
+			#ifdef USE_LOGDEPTHBUF_EXT
+
+				#extension GL_EXT_frag_depth : enable
+				varying float vFragDepth;
+
+			#endif
+
+		#endif
+		uniform float opacity;
+		varying float vAmount;
+		varying float difference;
+		void main() 
+		{
+			//gl_FragColor = vec4(0.0-(vAmount), 0.5-(vAmount*0.5), 0.5+(vAmount*0.5), 1.0);
+			gl_FragColor = vec4(0.0, 0.3-((difference*30.0*256.0/4294967295.0)*0.3), 0.8+((difference*30.0*256.0/4294967295.0)*0.2), opacity);
+			#if defined(USE_LOGDEPTHBUF) && defined(USE_LOGDEPTHBUF_EXT)
+
+				gl_FragDepthEXT = log2(vFragDepth) * logDepthBufFC * 0.5;
+
+			#endif
+		}  
+		</script>
+		
+		
+		<script>
+
+			if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
+			document.getElementById("mybutton").className="pause";
+			var toBinary = function(decNum){
+				return parseInt(decNum,10).toString(2);
+			}
+			//var uint32 = 20122717764 >>> 0;
+			//console.log(ConvertBase.dec2bin(20122717764))
+			
+			var clock, delta;
+			var overall_scale=90;
+			var loading =false;
+			var new_state=false;
+			var new_time=0.0;
+			var buildings_status={};
+			var status2Color={'':0x66ffcc,'0':0xffff00, '1':0xff9900, '2':0xff0000, '3':0x800000};
+			var stats;
+			var textureLoader = new THREE.TextureLoader();
+			var camera, scene, renderer, controls;
+			var settings = {
+				//metalness: 0.0,
+				//roughness: 0.4,
+				ambientIntensity: 0.5,
+				aoMapIntensity: 0.5,
+				waterOpacity: 0.7,
+				waterHeightBias:4.0,
+				displacementScale: 300.0, // from original model
+				normalScale: 1.0,
+				//displayBuildings: true,
+				textureMap: 'roadMap',
+				terrainResolution: '256x256',
+				wireframe: false,
+				flood_fps:30.0
+			};
+
+			var mesh, bmesh, material,material2,intscene;
+			
+			
+			var pointLight, ambientLight;
+
+			var mouseX = 0;
+			var mouseY = 0;
+
+			var windowHalfX = window.innerWidth / 2;
+			var windowHalfY = window.innerHeight / 2;
+
+			var height = 500*overall_scale; // of camera frustum
+
+			var r = 0.0;
+			var plane, plane2 ,mesh;
+			var displacementMap,displacementMap1,displacementMap2, displacement_image_data, displacement_image_data2;
+			var displaced_texture;
+			
+
+			var canvas = document.createElement( 'canvas' );
+			var context = canvas.getContext( '2d' );
+			var canvasHeight=0;
+			var canvasWidth=0;
+			var buf;
+			var buf8;
+			var mydata;
+			
+			var play=false;
+			
+			function toggle(el){
+				//console.log("do")
+				if(el.className!="pause")
+				{
+					el.src='play.png';
+					el.className="pause";
+					play=false;
+				}
+				else if(el.className=="pause")
+				{
+					el.src='pause.png';
+					el.className="play";
+					play=true;
+				}
+				
+				return false;
+			}
+			
+			var time_t=0.0;
+			var frame_time_sec=0.033;
+			var t1=0.0;
+			var t2=0.0;
+			var present_frame=0;
+			var list_depth_images=[];
+			var time_step = 1;
+			var nb_simulation_steps=2;
+			for(var i=1;i<nb_simulation_steps+1;i++){
+				list_depth_images.push("depth-data/MillBrook/outs/millbrook-flood-"+(i*time_step)+".png")
+			}
+			
+			var stepSlider = document.getElementById('range0');
+			document.getElementById("range0").style.width = document.getElementById("mycol").style.width;
+			//	document.getElementById("range0").style.left = 50+"px";
+	
+			
+			noUiSlider.create(stepSlider, {
+				start: [ 0.0 ],
+				step: 0.0001,
+				//snap: true,
+				range: {
+					'min': [  0.0 ],
+					'max': [ 1.0 ]
+				}
+			});
+			var stepSliderValueElement = document.getElementById('slider-step-value');
+
+			stepSlider.noUiSlider.on('update', function( values, handle ) {
+				var myval = parseFloat(parseFloat(values[handle]).toFixed(3))
+				stepSliderValueElement.innerHTML = parseInt((myval)*120)+" min";
+			});
+			stepSlider.noUiSlider.on('start', function(){
+				play=false;
+				var el = document.getElementById("mybutton");
+				if(el.className!="pause")
+				{
+					el.src='play.png';
+					el.className="pause";
+					play=false;
+				}
+				
+			});
+			stepSlider.noUiSlider.on('change', function( values, handle ) {
+				
+				var myval = parseFloat(parseFloat(values[handle]).toFixed(3))
+				stepSliderValueElement.innerHTML = parseInt((myval)*120)+" min";
+				present_frame=parseInt(Math.floor(myval))
+				
+				customUniforms[ 'ratio' ].value =parseFloat(time_t.toFixed(3));
+				
+				new_time=parseFloat(parseFloat(myval-present_frame).toFixed(3));
+				loading =true;
+				new_state=true;
+				
+			});
+			
+			init();
+			animate();
+			initGui();
+
+			
+			
+			// Init gui
+			function initGui() {
+
+				var gui = new dat.GUI();
+				
+
+				// gui.add( settings, "aoMapIntensity" ).min( 0 ).max( 1 ).onChange( function( value ) {
+
+					// material.aoMapIntensity = value;
+
+				// } );
+
+				// gui.add( settings, "ambientIntensity" ).min( 0 ).max( 1 ).onChange( function( value ) {
+
+					// ambientLight.intensity = value;
+
+				// } );
+
+				gui.add( settings, "waterOpacity" ).min( 0 ).max( 1 ).onChange( function( value ) {
+					customUniforms[ 'opacity' ].value = value;
+					
+				} );
+				
+				
+				// gui.add( settings, "waterHeightBias" ).min( -2.0 ).max( 6.0 ).step(0.001).onChange( function( value ) {
+
+					// //plane2.position.y =(-400.0-0.6+value)*overall_scale;//-1.01+value;
+					// plane2.position.y = (-400.0-3.0+value)*overall_scale;
+					// //customUniforms[ 'bumpScale' ].value = customUniforms[ 'bumpScale' ].value*value;//((0.48*value)/90.0);
+					// //plane2.position.y -= (((value-90)/210)*0.01);
+
+				// } );
+				
+
+				gui.add( settings, "displacementScale" ).min( 1 ).max( 2000.0 ).onChange( function( value ) {
+
+					material.displacementScale = (value/16777216.0)*overall_scale;
+					//material2.displacementScale = value;
+					//bmesh.scale.set( 0.999*overall_scale, 0.9995*overall_scale, ((0.48*value)/90.0)*overall_scale/*0.53333*/ );
+					//intscene.scale.set( 0.999*overall_scale,((0.48*value)/90.0)*overall_scale/*0.53333*/, 0.998*overall_scale  );
+					customUniforms[ 'bumpScale' ].value = (value/16777216.0)*overall_scale;//((0.48*value)/90.0);
+					//plane2.position.y -= (((value-90)/210)*0.01);
+
+				} );
+
+				// gui.add( settings, "normalScale" ).min( - 1 ).max( 1 ).onChange( function( value ) {
+
+					// material.normalScale.set( 1, - 1 ).multiplyScalar( value );
+
+				// } );
+				// gui.add(settings, 'displayBuildings').onChange( function( value ) {
+
+					// //material.normalScale.set( 1, - 1 ).multiplyScalar( value );
+					// //bmesh.visible=value;
+
+				// } );
+				gui.add(settings, 'textureMap',[ 'roadMap','greenHeight'] ).onChange( function( value ) {
+					console.log("changing texture map to: "+value)
+					if (value=='roadMap'){
+						plane.material.map=textureLoader.load( "mill.png" );
+						pointLight.intensity = 0.5;
+						//plane.material.specular= 0x111111;
+					}
+					else if (value=='greenHeight'){
+						plane.material.map=textureLoader.load( "millbrook-shade-medium-height-green2.png" );
+						if (plane.material.specular){
+							pointLight.intensity = 0.8;
+							//plane.material.specular= 0x444444;
+						}
+						//
+					}
+				} );
+				gui.add(settings, 'terrainResolution',[ /*'2048x2048', '1024x1024' ,*/ '512x512', '256x256' ] ).onChange( function( value ) {
+					console.log("changing resolution to: "+value)
+					// if (value=='2048x2048'){
+						// var planeGeo = new THREE.PlaneBufferGeometry( 2000*2*overall_scale, 2000*2*overall_scale,2048, 2048   );
+						// THREE.BufferGeometryUtils.computeTangents( planeGeo );
+						// var planeGeo2 = new THREE.PlaneBufferGeometry( 2000*2*overall_scale, 2000*2*overall_scale, 2048, 2048  );
+						// THREE.BufferGeometryUtils.computeTangents( planeGeo2 );
+						// plane.geometry=planeGeo;
+						// plane2.geometry=planeGeo2;
+					// }
+					// else if (value=='1024x1024'){
+						// var planeGeo = new THREE.PlaneBufferGeometry( 2000*2*overall_scale, 2000*2*overall_scale,1024, 1024   );
+						// THREE.BufferGeometryUtils.computeTangents( planeGeo );
+						// var planeGeo2 = new THREE.PlaneBufferGeometry( 2000*2*overall_scale, 2000*2*overall_scale,1024, 1024   );
+						// THREE.BufferGeometryUtils.computeTangents( planeGeo2 );
+						// plane.geometry=planeGeo;
+						// plane2.geometry=planeGeo2;
+					// }
+					// else 
+					if (value=='512x512'){
+						var planeGeo = new THREE.PlaneBufferGeometry( 2000*2*overall_scale, 2000*2*overall_scale,512, 512   );
+						THREE.BufferGeometryUtils.computeTangents( planeGeo );
+						var planeGeo2 = new THREE.PlaneBufferGeometry( 2000*2*overall_scale, 2000*2*overall_scale,512, 512   );
+						THREE.BufferGeometryUtils.computeTangents( planeGeo2 );
+						plane.geometry=planeGeo;
+						plane2.geometry=planeGeo2;
+					}
+					else if (value=='256x256'){
+						var planeGeo = new THREE.PlaneBufferGeometry( 2000*2*overall_scale, 2000*2*overall_scale,256, 256   );
+						THREE.BufferGeometryUtils.computeTangents( planeGeo );
+						var planeGeo2 = new THREE.PlaneBufferGeometry( 2000*2*overall_scale, 2000*2*overall_scale,256, 256   );
+						THREE.BufferGeometryUtils.computeTangents( planeGeo2 );
+						plane.geometry=planeGeo;
+						plane2.geometry=planeGeo2;
+					}
+					
+				} );
+				gui.add(settings, 'wireframe').onChange( function( value ) {
+
+					//material.normalScale.set( 1, - 1 ).multiplyScalar( value );
+					//bmesh.visible=value;
+					plane.material.wireframe= value;
+					plane2.material.wireframe= value;
+
+				} );
+				gui.add( settings, "flood_fps" ).min( 5.0 ).max( 120.0 ).onChange( function( value ) {
+
+					 flood_fps = value;
+					 frame_time_sec=1.0/flood_fps;
+
+				} );
+
+			}
+
+			function init() {
+				clock = new THREE.Clock();
+				var container = document.createElement( 'div' );
+				document.body.appendChild( container );
+
+				renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				container.appendChild( renderer.domElement );
+
+				renderer.gammaInput = true;
+				renderer.gammaOutput = true;
+				
+				//
+
+				scene = new THREE.Scene();
+
+				var aspect = window.innerWidth / window.innerHeight;
+				//camera = new THREE.OrthographicCamera( - height * aspect, height * aspect, height, - height, 1, 10000 );
+				camera = new THREE.PerspectiveCamera( 40, aspect, 2, 10000*overall_scale );
+				camera.position.z = 1500*overall_scale;
+				scene.add( camera );
+
+				controls = new THREE.OrbitControls( camera, renderer.domElement );
+				controls.enableZoom = true;
+				controls.enableDamping = true;
+
+				// lights
+
+				ambientLight = new THREE.AmbientLight( 0xffffff, settings.ambientIntensity );
+				scene.add( ambientLight );
+
+				pointLight = new THREE.PointLight( 0xffffff, 0.5 );
+				pointLight.position.z =-1200*overall_scale;
+				pointLight.position.y =500*overall_scale;
+				scene.add( pointLight );
+
+				
+				// textures
+
+				var myMap = textureLoader.load( "mill.png" );
+				var normalMap = textureLoader.load( "millbrook-medium-normal.png" );
+				var aoMap = textureLoader.load( "millbrook-medium-ao.png" );
+				var specularMap = textureLoader.load( "millbrook-medium-specular.png" );
+				displacementMap = textureLoader.load( "depth-data/millbrook-terrain.png" );
+				displacementMap1 = textureLoader.load( list_depth_images[present_frame] );
+				displacementMap2 = textureLoader.load( list_depth_images[present_frame+1]);//result_tq02m_WDraster_43200.png");//"WH_43200.png" );
+				
+				
+				material = new THREE.MeshPhongMaterial( {
+
+					//color: 0x88ffaa,
+					map: myMap,
+					normalMap: normalMap,
+					normalScale: new THREE.Vector2( 1, -1 ), // why does the normal map require negation in this case?
+
+					aoMap: aoMap,
+					aoMapIntensity: 0.5,
+					specularMap: specularMap,
+					specular: 0x222222,
+					displacementMap: displacementMap,
+					displacementScale: (settings.displacementScale/16777216.0)*overall_scale,
+					displacementBias: 0.0,// from original model
+					//side: THREE.DoubleSide //,transparent: true, opacity:0.5//, wireframe: true
+					
+
+				} );
+				
+
+				
+				var planeGeo = new THREE.PlaneBufferGeometry( 2000*2*overall_scale, 2000*2*overall_scale,256, 256   );
+
+				THREE.BufferGeometryUtils.computeTangents( planeGeo );
+				plane = new THREE.Mesh(	planeGeo, material );
+				plane.rotation.x = -Math.PI / 2;
+				plane.position.y = -400.0*overall_scale;
+				scene.add( plane );
+				
+				
+				////////////
+				// CUSTOM //
+				////////////
+				
+				// texture used to generate "bumpiness"
+				displacementMap1.wrapS = displacementMap1.wrapT = THREE.RepeatWrapping; 
+				displacementMap2.wrapS = displacementMap2.wrapT = THREE.RepeatWrapping; 
+				// magnitude of normal displacement
+				ratio = 0.0;
+				// use "this." to create global object
+				this.customUniforms = {
+					EPSILON:	    { type: "f", value: Number.EPSILON } ,
+					bumpTexture:	{ type: "t", value: displacementMap1 },
+					bumpTexture2:	{ type: "t", value: displacementMap2 },
+					bumpScale:	    { type: "f", value: (settings.displacementScale/16777216.0)*overall_scale },
+					ratio:	    { type: "f", value: ratio },
+					opacity:	    { type: "f", value: settings.waterOpacity }
+				};
+				// create custom material from the shader code above
+				//   that is within specially labelled script tags
+				var customMaterial2 = new THREE.ShaderMaterial( 
+				{
+					uniforms: customUniforms,
+					vertexShader:   document.getElementById( 'vertexShader2'   ).textContent,
+					fragmentShader: document.getElementById( 'fragmentShader2' ).textContent//,//wireframe: true
+					,transparent: true, opacity:settings.waterOpacity
+					//side: THREE.DoubleSide
+				}   );
+		
+				var planeGeo2 = new THREE.PlaneBufferGeometry( 2000*2*overall_scale, 2000*2*overall_scale, 256, 256  );
+				THREE.BufferGeometryUtils.computeTangents( planeGeo2 );
+				plane2 = new THREE.Mesh(	planeGeo2, customMaterial2 );
+				plane2.rotation.x = -Math.PI / 2;
+				plane2.position.y = ((-400.0)*overall_scale)-2.0;
+				scene.add( plane2 );
+				
+				stats = new Stats();
+				stats.domElement.style.top = (window.innerHeight-60)+'px';
+				container.appendChild( stats.dom );
+				present_frame++;
+				window.addEventListener( 'resize', onWindowResize, false );
+
+			}
+
+			function onWindowResize() {
+
+				var aspect = window.innerWidth / window.innerHeight;
+
+				camera.left = - height * aspect;
+				camera.right = height * aspect;
+				camera.top = height;
+				camera.bottom = - height;
+
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+
+			//
+
+			function animate() {
+
+				requestAnimationFrame( animate );
+
+				controls.update();
+				
+				stats.begin();
+				render();
+				stats.end();
+
+			}
+
+			function render() {
+				time = clock.getElapsedTime();
+				//delta = clock.getDelta();			
+				t2=time;
+				
+				if(present_frame<nb_simulation_steps){
+					
+					if (loading==false){
+						if (play && customUniforms[ 'ratio' ].value<=1.0 && new_state==false){
+							if (intscene){
+								//console.log(intscene);
+								
+								intscene.traverse( function ( child ) {
+									
+									if ( child && (child instanceof THREE.Mesh) ) {
+										
+											if (child.material.color.getHex()!=status2Color[buildings_status[child.name][present_frame]]){
+												child.material.color.setHex(status2Color[buildings_status[child.name][present_frame]]);
+											}
+										
+									}
+								});
+							}
+							//console.log(time)
+							if (t2-t1>frame_time_sec){
+								time_t+=0.0001;
+								customUniforms[ 'ratio' ].value +=time_t;//(1.0+(Math.sin(time_t)))/2.0;//1.0;//(Math.sin(time*0.5));
+								stepSlider.noUiSlider.set((present_frame-1+customUniforms[ 'ratio' ].value));
+								t1=t2;
+							}
+						}
+						else if (play && customUniforms[ 'ratio' ].value<=1.0 && new_state==true){
+							if (intscene){
+								//console.log(intscene);
+								
+								intscene.traverse( function ( child ) {
+									
+									if ( child && (child instanceof THREE.Mesh) ) {
+										
+											if (child.material.color.getHex()!=status2Color[buildings_status[child.name][present_frame]]){
+												child.material.color.setHex(status2Color[buildings_status[child.name][present_frame]]);
+											}
+										
+									}
+								});
+							}
+							if (t2-t1>frame_time_sec){
+								time_t=new_time;
+								customUniforms[ 'ratio' ].value =time_t;//(1.0+(Math.sin(time_t)))/2.0;//1.0;//(Math.sin(time*0.5));
+								new_state=false;
+								present_frame++;
+								t1=t2;
+							}
+							
+						}
+						else if (play && customUniforms[ 'ratio' ].value>1.0 && new_state==false){
+							if (intscene){
+								//console.log(intscene);
+								
+								intscene.traverse( function ( child ) {
+									
+									if ( child && (child instanceof THREE.Mesh) ) {
+										
+											if (child.material.color.getHex()!=status2Color[buildings_status[child.name][present_frame]]){
+												child.material.color.setHex(status2Color[buildings_status[child.name][present_frame]]);
+											}
+										
+									}
+								});
+							}
+							if(present_frame==0 ){
+								present_frame++;
+							}
+							
+							loading=true;
+							
+						}
+					}
+					else{
+						if(play==true && new_state==false){
+							textureLoader.load( list_depth_images[present_frame] ,function ( texture1 ) {
+								textureLoader.load( list_depth_images[present_frame+1] ,function ( texture2 ) {
+									texture1.wrapS = texture1.wrapT = THREE.RepeatWrapping; 
+									texture2.wrapS = texture2.wrapT = THREE.RepeatWrapping; 
+									customUniforms[ 'bumpTexture' ].value=texture1
+									customUniforms[ 'bumpTexture2' ].value=texture2;
+									present_frame++;
+									
+									loading =false;
+									time_t=0.0;
+									customUniforms[ 'ratio' ].value=time_t;
+									stepSlider.noUiSlider.set(present_frame);
+								});
+							});
+							if (intscene){
+								//console.log(intscene);
+								
+								intscene.traverse( function ( child ) {
+									
+									if ( child && (child instanceof THREE.Mesh) ) {
+										
+											if (child.material.color.getHex()!=status2Color[buildings_status[child.name][present_frame]]){
+												child.material.color.setHex(status2Color[buildings_status[child.name][present_frame]]);
+											}
+										
+									}
+								});
+							}
+						}
+						else if(play==false && new_state==true){
+							if (intscene){
+								//console.log(intscene);
+								
+								intscene.traverse( function ( child ) {
+									
+									if ( child && (child instanceof THREE.Mesh) ) {
+										
+											if (child.material.color.getHex()!=status2Color[buildings_status[child.name][present_frame]]){
+												child.material.color.setHex(status2Color[buildings_status[child.name][present_frame]]);
+											}
+										
+									}
+								});
+							}
+							textureLoader.load( list_depth_images[present_frame] ,function ( texture1 ) {
+								textureLoader.load( list_depth_images[present_frame+1] ,function ( texture2 ) {
+									texture1.wrapS = texture1.wrapT = THREE.RepeatWrapping; 
+									texture2.wrapS = texture2.wrapT = THREE.RepeatWrapping; 
+									customUniforms[ 'bumpTexture' ].value=texture1
+									customUniforms[ 'bumpTexture2' ].value=texture2;
+									//present_frame++;
+									
+									
+									//time_t=0.0;
+									//console.log(new_time)
+									time_t=new_time;
+									customUniforms[ 'ratio' ].value=time_t;
+									stepSlider.noUiSlider.set((present_frame+customUniforms[ 'ratio' ].value));
+									new_state=true;
+									loading =false;
+									//stepSlider.noUiSlider.set(present_frame);
+								});
+							});
+						}
+					}
+				}
+				
+					
+
+				renderer.render( scene, camera );
+
+			}
+
+		</script>
+
+	</body>
+
+</html>

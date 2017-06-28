@@ -1,0 +1,34 @@
+Simulation Name			, Millbrock test 1 5 meter
+Short Name (for outputs)	, Millbrock1_5m
+Version	   			, 1,0,0
+Time Start (seconds)		, 0
+Time End   (seconds)		, 7200
+Max DT (seconds)		, 60
+Min DT (seconds)		, 0.01
+Update DT (seconds)		, 60
+Alpha (Fraction DT 0.0-1.0)	, 0.1
+Max Iterations			, 10000000
+Roughness Global		, 0.05
+Ignore WD (meter)		, 0.0001
+Tolerance (meter)		, 0.0001
+Boundary Ele (Hi/Closed-Lo/Open), -1000
+Elevation ASCII			, millbrook_DTM_5m_resample1m.asc
+Rain Event CSV			, Rain20mm1hour.csv
+Rain Spatial Temporal		, 
+Water Level Event CSV		, 
+Inflow Event CSV		, 
+Time Plot CSV			, 
+Raster Grid CSV			, WDraster.csv
+Output Console			, true
+Output Period (s)		, 300
+Output Computation Time		, true
+Check Volumes	   		, true
+Remove Proc Data (No Pre-Proc)	, true
+Remove Pre-Proc Data		, true
+Raster VEL Vector Field		, true
+Raster WD Tolerance (meter)	, 0.00
+Update Peak Every DT		, false
+Expand Domain                   , false
+Ignore Upstream			, false
+Upstream Reduction (meter)	, 1.0
+
