@@ -21,3 +21,6 @@ or
 
 (calculation time under a minute !!)
 
+Note that in order to execute the python script you need to have numpy installed and also GDAL and python bindings.
+To install GDAL and Python bindings on windows , follow the instructions at : http://cartometric.com/blog/2011/10/17/install-gdal-on-windows/. Install numpy with unofficial binaries here: http://www.lfd.uci.edu/~gohlke/pythonlibs/#numpy by doing ```pip install "location_of_whl_file\file.whl"```.
+
