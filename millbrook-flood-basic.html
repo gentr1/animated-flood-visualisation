@@ -134,7 +134,7 @@
 		void main() 
 		{
 			//gl_FragColor = vec4(0.0-(vAmount), 0.5-(vAmount*0.5), 0.5+(vAmount*0.5), 1.0);
-			gl_FragColor = vec4(0.0, 0.3-((difference*30.0*256.0/4294967295.0)*0.3), 0.8+((difference*30.0*256.0/4294967295.0)*0.2), opacity);
+			gl_FragColor = vec4(1.0-((difference*30.0*256.0/4294967295.0)*1.0), 1.0-((difference*30.0*256.0/4294967295.0)*0.7), 1.0-((difference*30.0*256.0/4294967295.0)*0.2), opacity);
 			#if defined(USE_LOGDEPTHBUF) && defined(USE_LOGDEPTHBUF_EXT)
 
 				gl_FragDepthEXT = log2(vFragDepth) * logDepthBufFC * 0.5;
